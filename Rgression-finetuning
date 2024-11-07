@@ -1,0 +1,139 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+
+#create features numpy
+X = np.array([-7.0,-4.0,-1.0,2.0,5.0,8.0,11.0,14.0])
+
+#create labels with numpy
+y = np.array([3.0,6.0,9.0,12.0,15.0,18.0,21.0,24.0])
+# y = X + 10 this is what the neural network learns, the relationship between X and y
+
+#visualize the data
+plt.scatter(X,y)
+#plt.show()
+
+#input and output shapes
+#create a demo for house prediction problem
+houseinfo = tf.constant(["bedroom","bathroom","garage"])
+houseprice = tf.constant([940000])
+#print(houseinfo,houseprice)
+
+#We need X to predict y, this is a numpy array
+#inputshape = X[0].shape #use one variable in X to predict a variable in y
+#outputshape = y[0].shape
+#print(outputshape) #this prints out no shape because our data is one dimension,(one row of numbers) a scaler
+
+#turn numpy arrays into tensors
+
+X = tf.cast(tf.constant(X), dtype=tf.float32) #numpy uses float64 by default, lets change to 32
+y = tf.cast(tf.constant(y), dtype=tf.float32)
+#print(tensorX)
+#tensor input shape
+inputshape = X[0].shape
+outputshape = y[0].shape
+#print(inputshape,outputshape) #this shows no shape, because X,y are scalers,
+
+#Steps to model with tensorflow
+#define the input, output and hidden layers of a deep learning model (neural network)
+#compile the model - define the loss function - how wrong the model is
+#optimizer - how to improve patterns model is learning
+#eval metrics - to interpret performance
+#fit a model - find patterns between X and y for features and labels
+
+#set tandomseed for reproducability
+rs42 = tf.random.set_seed(42) # answer th the universe - hitchhikers guide to the galaxy
+
+#1 - create a model using sequential API
+model = tf.keras.Sequential([  #sequential groups a linear stack of layers into a keras model
+        tf.keras.layers.Dense(100,activation='relu'),
+        tf.keras.layers.Dense(100,activation='relu'), #add more layers to the neural network for accuracy
+        tf.keras.layers.Dense(100,activation='relu'),
+        tf.keras.layers.Dense(1) #one layer with one  hidden neuron
+        ])
+# 2 - compile the model
+model.compile(loss=tf.keras.losses.mae,  #mae is mean absolute error, computes losses between labels and predictions
+              #optimizer=tf.keras.optimizers.SGD(), #sgd is stochasitc gradient descent
+              optimizer=tf.keras.optimizers.Adam(learning_rate=0.1),
+              metrics=['mae'])
+#3 fit the model
+#model.fit(tf.expand_dims(X, axis=-1), y, epochs=5) # 5 passes to look at X and y to find a pattern
+
+#remind what is X, y?
+#print(X,y)
+#try to make a prediction using our model
+#ypred = model.predict(X) # predicts 12.716021 for y, this is not 100% accurate due to loss rate
+#print(ypred) #this value is off a bit
+
+#lets improve the model
+""" We can improve the model by altering the steps in create, compile and fit for the model 1,2,3
+we may add more layers when we create the model, change the activsation function of each layer, 
+2 - compiling a model wee may change the optimization function or learningrate of function
+3 - when fitting the model - fit model for more epochs or on more data """
+
+#lets just change the epoochs for now
+#model.fit(tf.expand_dims(X, axis=-1), y, epochs=130)
+#lets look at X, y again
+#print(X,y)
+#did the prediction improve?\
+#input_data = np.array([[17.0]])
+#ypred = model.predict(input_data)
+#print(ypred)
+
+#run a prediciton
+#input_data = np.array([[17.0]])
+#ypred = model.predict(input_data)
+#print(ypred)
+
+
+
+# to evaluate the model you need to visualize the model, data, or the training to see whats going on
+
+
+#make a bigger range
+
+X = tf.range(-100,100,4)
+#print(X)
+
+#make labels
+y = X + 10 #the formula we want model to learn - tje pattern, y should be higher then X by 10 for every number
+#print(y)
+
+#visualize
+plt.scatter(X,y)
+#plt.show()
+
+#3 sets of data
+# 1 - the training set - model learns from this data, about 70-80% of the data available
+#2 - validation set - model gets tuned on this data - 10-15% of the data available
+#3 - the test set - model gets evaluated on this data to test what it has learned, 10-15% of total data avaiable
+
+
+#lets see the length of samples
+#print(len(X))
+
+#now lets split this data into a train and test set
+
+X_train = X[:40] #first 40 training samples, (about 80%)
+y_train = y[:40]
+
+X_test = X[40:] #Last 10 samples is the test set 20%
+y_test = y[40:]
+#print(len(X_train),len(X_test))
+
+#visaulize the data thats in a train and test set !
+
+plt.figure(figsize=(10,7))
+#plot train data in color blue
+plt.scatter(X_train,y_train, c="b", label="Training data")
+#plot test data in green
+plt.scatter(X_test,y_test, c="g", label="Test data")
+#show a legend
+plt.legend(); # semicolon is to remove matplotlib output
+
+#lets build another neural network for our data
+
+
+model = tf.keras.Sequential([
+        tf.keras.layers.Dense(1)
+])
