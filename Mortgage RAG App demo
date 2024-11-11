@@ -18,7 +18,7 @@ api_key = os.getenv("OPENAI_API_KEY")
 # Set the OpenAI model and temperature
 # The Settings is a bundle of commonly used resources used during the indexing and querying stage in a
 # LlamaIndex pipeline/application. You can use it to set the global configuration.
-Settings.llm = OpenAI(temperature=0.7, model="gpt-3.5-turbo")
+Settings.llm = OpenAI(temperature=0.7, model="llama2")
 
 # load data using SimpleDirectoryReader
 # All files in the data folder are loaded into the index
@@ -53,3 +53,27 @@ query_engine = RetrieverQueryEngine(
 
 response = query_engine.query("What are the Terms of payments?")
 print(response)
+from fastapi import FastAPI
+from langchain_community.chat_models import ChatOllama
+
+from langserve import add_routes
+
+app = FastAPI(
+    title="LangChain Server",
+    version="1.0",
+    description="Spin up a simple api server using Langchain's Runnable interfaces",
+)
+
+
+llm = ChatOllama(model="llama2")
+
+add_routes(
+    app,
+    llm,
+    path="/ollama",
+)
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="localhost", port=8000)
