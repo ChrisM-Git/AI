@@ -1,0 +1,1 @@
+This model predicts a persons estimated salary based on historcal financial datapoints from a bank such as account balance, age, gender, creditscore, member tenure.
