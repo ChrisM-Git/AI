@@ -1,9 +1,12 @@
 import streamlit as st
-import numpy as np
 import tensorflow as tf
-from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
 import pandas as pd
 import pickle
+import os
+
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 
 # Load the trained model, if pycharm doesnt detect keras in init.py go to File > Invalidate Caches / Restart > Invalidate and Restart.
 model = tf.keras.models.load_model('model.h5')
