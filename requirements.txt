@@ -1,9 +1,8 @@
-
 langchain
 python-dotenv
-lanfchain-openai
+langchain-openai
 Ipykernel
 beautifulsoup4
-langchsin_community
+langchain_community
 faiss-cpu
 streamlit
