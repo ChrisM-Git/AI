@@ -42,6 +42,7 @@ sequenceDiagram
     Hook-->>Cline: allow request
   end
 
+
 Prerequisites
 
 VS Code
