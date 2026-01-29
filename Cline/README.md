@@ -42,13 +42,3 @@ sequenceDiagram
     Hook-->>Cline: allow request
   end
 
-
-Prerequisites
-
-VS Code
-
-Cline extension
-
-Node.js installed
-
-Prisma AIRS API key & profile
