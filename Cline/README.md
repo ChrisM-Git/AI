@@ -53,3 +53,60 @@ Node.js installed
 
 Prisma AIRS API key & profile
 
+Setup
+Configure MCP server in Cline
+
+Edit Cline MCP settings:
+
+{
+  "mcpServers": {
+    "prisma-airs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway",
+        "--sse",
+        "https://service.api.aisecurity.paloaltonetworks.com/mcp/sse",
+        "--header",
+        "x-pan-token: YOUR_API_KEY",
+        "--header",
+        "x-pan-profile: Cline",
+        "--logLevel",
+        "none"
+      ],
+      "alwaysAllow": ["pan_inline_scan"],
+      "autoApprove": ["pan_inline_scan"],
+      "disabled": false
+    }
+  }
+}
+
+{
+  "mcpServers": {
+    "prisma-airs": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway",
+        "--sse",
+        "https://service.api.aisecurity.paloaltonetworks.com/mcp/sse",
+        "--header",
+        "x-pan-token: YOUR_API_KEY",
+        "--header",
+        "x-pan-profile: Cline",
+        "--logLevel",
+        "none"
+      ],
+      "alwaysAllow": ["pan_inline_scan"],
+      "autoApprove": ["pan_inline_scan"],
+      "disabled": false
+    }
+  }
+}
+
+
+
+
+
+
+
