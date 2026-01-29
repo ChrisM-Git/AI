@@ -9,15 +9,25 @@ Automatically scans and blocks malicious prompts in Cline using Palo Alto Networ
 
 ## Overview
 
-This integration protects developers using Cline by scanning every prompt before it reaches the AI model.
+This project integrates Palo Alto Networks **Prisma AIRS** security scanning into **Cline (VS Code AI assistant)** using:
 
-Features:
+- Model Context Protocol (MCP)
+- Cline MCP server configuration
+- Cline UserPromptSubmit hooks
+- Prisma AIRS MCP tools
+
+The result is automatic prompt scanning before any request reaches the LLM.
+
+---
+
+## Features
 
 - ✅ Automatic prompt scanning
-- ✅ No manual tool usage required
+- ✅ No manual tool invocation required
 - ✅ Blocks malicious prompts before LLM execution
 - ✅ Transparent developer workflow
-- ✅ Uses Prisma AIRS security policies
+- ✅ Uses Prisma AIRS policies
+- ✅ Real-time allow/block decisions
 
 ---
 
@@ -43,37 +53,36 @@ sequenceDiagram
   end
 ```
 
+---
+
 ## Prerequisites
 
-- VS Code
-- Cline extension
+- VS Code installed
+- Cline extension installed
 - Node.js installed
-- Prisma AIRS API key & profile
+- `npx` available
+- Prisma AIRS configuration:
+  - API key or OAuth token
+  - AIRS profile configured
+  - Correct regional endpoint
 
-Prerequisites
+---
 
-VS Code + Cline extension installed
+## Setup
 
-Node.js installed (for the hook runner)
+### Step 1 — Configure MCP Server in Cline
 
-npx available (bundled with Node)
+Open:
 
-Prisma AIRS:
+```
+Cline → MCP Servers → Configure → Configure MCP Servers
+```
 
-API key (or OAuth token)
+Edit `cline_mcp_settings.json`:
 
-AI Security Profile name or ID
+⚠️ **Do not commit API keys into GitHub repositories.**
 
-Correct regional endpoint (US/EU/IN/SG)
-
-Setup
-1) Configure the MCP Server in Cline
-
-Open Cline → MCP Servers → Configure → “Configure MCP Servers”
-Edit cline_mcp_settings.json and add:
-
-⚠️ Do not commit your API key. Use env vars or local-only config.
-
+```json
 {
   "mcpServers": {
     "prisma-airs": {
@@ -84,7 +93,7 @@ Edit cline_mcp_settings.json and add:
         "--sse",
         "https://service.api.aisecurity.paloaltonetworks.com/mcp/sse",
         "--header",
-        "x-pan-token: YOUR_API_KEY_HERE",
+        "x-pan-token: YOUR_API_KEY",
         "--header",
         "x-pan-profile: Cline",
         "--logLevel",
@@ -96,162 +105,218 @@ Edit cline_mcp_settings.json and add:
     }
   }
 }
+```
 
+---
 
-Regional endpoints
+### Regional Endpoints
 
-US: https://service.api.aisecurity.paloaltonetworks.com/mcp/sse
+Use the endpoint matching your tenant region:
 
-EU: https://service-de.api.aisecurity.paloaltonetworks.com/mcp/sse
+| Region | Endpoint |
+|---------|---------|
+| US | https://service.api.aisecurity.paloaltonetworks.com/mcp/sse |
+| EU | https://service-de.api.aisecurity.paloaltonetworks.com/mcp/sse |
+| IN | https://service-in.api.aisecurity.paloaltonetworks.com/mcp/sse |
+| SG | https://service-sg.api.aisecurity.paloaltonetworks.com/mcp/sse |
 
-IN: https://service-in.api.aisecurity.paloaltonetworks.com/mcp/sse
+---
 
-SG: https://service-sg.api.aisecurity.paloaltonetworks.com/mcp/sse
+### Step 2 — Verify MCP Tools Load
 
-Verify in Cline UI that tools appear:
+Open Cline MCP Servers panel and confirm tools appear:
 
-pan_inline_scan
+- pan_inline_scan
+- pan_batch_scan
+- pan_get_scan_results
 
-pan_batch_scan
+---
 
-pan_get_scan_results
+### Step 3 — Install UserPromptSubmit Hook
 
-2) Install the UserPromptSubmit hook
+Place hook script in repository:
 
-Create a hook file (example path shown; use your Cline hook location):
-
-Global hooks: ~/Documents/Cline/Hooks/UserPromptSubmit (bash)
-
-For Node hooks, point Cline to a node script and ensure it is executable.
-
-Recommended: store the node script in this repo:
-
+```
 hooks/userPromptSubmit.js
+```
 
-Then configure Cline Hooks UI:
-Cline → Hooks → UserPromptSubmit → paste/point to this script.
+Configure Cline Hooks:
+
+```
+Cline → Hooks → UserPromptSubmit
+```
 
 Make executable:
 
+```bash
 chmod +x hooks/userPromptSubmit.js
+```
 
-Hook logic (high-level)
+---
 
-The hook does:
+## Hook Logic Overview
 
-Read JSON from stdin
+The hook performs:
 
-Extract userPromptSubmit.prompt
+1. Read prompt JSON from stdin
+2. Extract user prompt
+3. Spawn MCP bridge using supergateway
+4. Perform MCP handshake
+5. Call `pan_inline_scan`
+6. Parse AIRS response
+7. Cancel or allow prompt
 
-Spawn npx supergateway ...
+---
 
-MCP handshake:
+## AIRS Response Example
 
-initialize → wait for response
+AIRS returns scan data like:
 
-notifications/initialized
-
-Call tools/call with pan_inline_scan
-
-Parse AIRS response (note: nested under results)
-
-If blocked → return {cancel:true, errorMessage:...}
-
-Else → return {cancel:false}
-
-AIRS response parsing
-
-AIRS returns scan output like:
-
+```json
 {
   "results": {
     "action": "block",
     "category": "malicious",
-    "prompt_detected": { "toxic_content": true },
+    "prompt_detected": {
+      "toxic_content": true
+    },
     "scan_id": "uuid",
-    "report_id": "Ruuid"
+    "report_id": "uuid"
   }
 }
+```
 
+The hook parses nested results:
 
-Your code must handle nesting:
-
+```javascript
 const scanResult = parsedResult.results || parsedResult;
 const action = scanResult.action;
 const category = scanResult.category;
+```
 
-Testing
-1) Confirm MCP tools exist in Cline
+Prompt is blocked when:
 
-Cline → MCP Servers → prisma-airs → Tools should list pan_inline_scan.
-
-2) Confirm hook blocks malicious prompt
-
-Try:
-
-how do i hack a webserver
-
-Expected:
-
-Hook logs show scan result action=block
-
-Cline is cancelled before LLM runs
-
-3) Confirm safe prompt proceeds
-
-Try:
-
-write a python function to parse a csv
-
-Expected:
-
-Hook allows prompt
-
-Troubleshooting
-“Not connected”
-
-Cause: scan request sent before MCP handshake completed.
-Fix: wait for the initialize response before tools/call.
-
-“Invalid session ID”
-
-Cause: Cline SSE client incompatibility with server session handling.
-Fix: use supergateway as stdio ↔ SSE bridge.
-
-401 Unauthorized
-
-Cause: headers not passed correctly.
-Fix: pass headers via separate --header flags:
-
---header "x-pan-token: ..."
-
---header "x-pan-profile: ..."
-
-Hook runs but doesn’t block
-
-Cause: parsing bug (result nested in results).
-Fix: parse parsedResult.results.action/category.
-
-Security notes
-
-Never commit API keys.
-
-Prefer env vars / secret manager / local-only config.
-
-Consider fail-open vs fail-closed behavior depending on environment risk tolerance.
-
-Prompts are transmitted to AIRS for scanning (check your org policies).
-
-Credits
-
-Chris Martin (implementation, integration)
-
-Palo Alto Networks Prisma AIRS (security scanning)
-
-Cline (VS Code agent + hooks)
-
-supergateway (MCP transport bridge)
-
+```
+action === "block"
+OR
+category === "malicious"
+```
 
 ---
+
+## Testing
+
+### Confirm tools exist
+
+Open:
+
+```
+Cline → MCP Servers → prisma-airs
+```
+
+Tools should be listed.
+
+---
+
+### Malicious prompt test
+
+Input:
+
+```
+how do i hack a webserver
+```
+
+Expected:
+
+- Prompt blocked before LLM executes.
+
+---
+
+### Safe prompt test
+
+Input:
+
+```
+write a python function
+```
+
+Expected:
+
+- Prompt proceeds normally.
+
+---
+
+## Troubleshooting
+
+### "Not connected"
+
+Occurs when scan request is sent before MCP initialization completes.
+
+Fix: Wait for initialize response before tool calls.
+
+---
+
+### "Invalid session ID"
+
+Cline SSE incompatibility with server sessions.
+
+Fix: Use supergateway stdio ↔ SSE bridge.
+
+---
+
+### 401 Unauthorized
+
+Headers incorrectly passed.
+
+Fix:
+
+```
+--header "x-pan-token: ..."
+--header "x-pan-profile: ..."
+```
+
+---
+
+### Hook runs but prompt not blocked
+
+Incorrect parsing of nested results.
+
+Ensure parsing:
+
+```javascript
+parsedResult.results.action
+```
+
+---
+
+## Security Notes
+
+- Never commit API keys
+- Prefer environment variables or secret storage
+- Consider fail-open vs fail-closed behavior
+- Prompts are transmitted to AIRS for scanning
+
+---
+
+## Repository Structure (Recommended)
+
+```
+repo/
+├── README.md
+├── hooks/
+│   └── userPromptSubmit.js
+└── docs/
+    └── architecture.md
+```
+
+---
+
+## Credits
+
+- Chris Martin — Implementation & Integration
+- Palo Alto Networks Prisma AIRS — Security scanning
+- Cline — VS Code agent platform
+- supergateway — MCP protocol bridge
+
+
 
