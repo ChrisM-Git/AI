@@ -1,52 +1,44 @@
-Prisma AIRS Security Integration for Cline (VS Code) using MCP + Hooks
+# Prisma AIRS Prompt Security for Cline (VS Code)
 
-Author: Chris Martin
-Assisted by: Claude & ChatGPT
-Purpose: Provide automatic prompt security filtering for developers using Cline in VS Code.
+Automatically scans and blocks malicious prompts in Cline using Palo Alto Networks Prisma AIRS via MCP.
 
-Overview
+**Author:** Chris Martin  
+**Assisted by:** Claude (Anthropic) + ChatGPT
 
-This project integrates Palo Alto Networks Prisma AIRS security scanning into Cline (VS Code AI assistant) using:
+---
 
-Model Context Protocol (MCP)
+## Overview
 
-Cline MCP server configuration
+This integration protects developers using Cline by scanning every prompt before it reaches the AI model.
 
-Cline UserPromptSubmit hooks
+Features:
 
-Prisma AIRS MCP tools
+- ✅ Automatic prompt scanning
+- ✅ No manual tool usage required
+- ✅ Blocks malicious prompts before LLM execution
+- ✅ Transparent developer workflow
+- ✅ Uses Prisma AIRS security policies
 
-The solution ensures every prompt is scanned before reaching the LLM, allowing malicious prompts to be blocked automatically without requiring developers to manually invoke tools.
+---
 
-Problem Statement
+## Architecture
 
-Developers using AI coding assistants may accidentally or intentionally submit prompts that include:
+```mermaid
+sequenceDiagram
+  participant Dev as Developer
+  participant Cline as Cline
+  participant Hook as UserPromptSubmit Hook
+  participant SG as supergateway
+  participant AIRS as Prisma AIRS MCP
 
-Prompt injection attempts
+  Dev->>Cline: Submit prompt
+  Cline->>Hook: Execute hook
+  Hook->>SG: Start MCP bridge
+  SG->>AIRS: pan_inline_scan
+  AIRS-->>Hook: Scan result
+  alt malicious
+    Hook-->>Cline: cancel request
+  else safe
+    Hook-->>Cline: allow request
+  end
 
-Jailbreak requests
-
-Toxic or unsafe instructions
-
-Attempts to bypass safeguards
-
-Security exploitation requests
-
-The goal is to:
-
-✅ Allow developers to work normally
-✅ Automatically scan prompts
-✅ Block unsafe prompts before they reach the AI model
-✅ Avoid requiring manual tool usage
-
-User Prompt
-      ↓
-Cline UserPromptSubmit Hook
-      ↓
-Hook calls MCP tool pan_inline_scan
-      ↓
-Prisma AIRS scans prompt
-      ↓
-Block or Allow decision returned
-      ↓
-Cline continues or cancels request
