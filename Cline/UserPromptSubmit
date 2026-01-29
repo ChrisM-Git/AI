@@ -1,0 +1,201 @@
+#!/usr/bin/env node
+
+const { spawn } = require('child_process');
+
+let input = '';
+process.stdin.on('data', chunk => input += chunk);
+
+process.stdin.on('end', async () => {
+  try {
+    const data = JSON.parse(input);
+    const prompt = data.userPromptSubmit?.prompt || data.prompt || '';
+    
+    if (!prompt) {
+      console.log(JSON.stringify({ cancel: false }));
+      return;
+    }
+
+    console.error(`[AIRS Security] Scanning prompt (${prompt.length} chars) via pan_inline_scan...`);
+
+    // Spawn the MCP server process
+    const mcp = spawn('npx', [
+      '-y',
+      'supergateway',
+      '--sse',
+      'https://service.api.aisecurity.paloaltonetworks.com/mcp/sse',
+      '--header',
+      'x-pan-token: Ab00Ke8RUEWq2roXFXzn0E3mVn9PG2fjDqu8GFLfgLY4uAUs',
+      '--header',
+      'x-pan-profile: Cline',
+      '--logLevel',
+      'none'
+    ], {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    let buffer = '';
+    let scanComplete = false;
+    let initComplete = false;
+
+    mcp.stdout.on('data', (chunk) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        try {
+          const msg = JSON.parse(line);
+          
+          // Handle initialize response
+          if (msg.id === 1 && msg.result) {
+            console.error('[AIRS Security] Initialization complete, sending initialized notification...');
+            initComplete = true;
+            
+            // Send initialized notification
+            const initializedMsg = {
+              jsonrpc: '2.0',
+              method: 'notifications/initialized'
+            };
+            mcp.stdin.write(JSON.stringify(initializedMsg) + '\n');
+            
+            // Now send the scan request
+            setTimeout(() => {
+              const scanMsg = {
+                jsonrpc: '2.0',
+                method: 'tools/call',
+                params: {
+                  name: 'pan_inline_scan',
+                  arguments: {
+                    scan_request: {
+                      prompt: prompt
+                    }
+                  }
+                },
+                id: 2
+              };
+              
+              console.error(`[AIRS Security] Sending scan request...`);
+              mcp.stdin.write(JSON.stringify(scanMsg) + '\n');
+            }, 200);
+          }
+          
+          // Handle scan result
+          if (msg.id === 2 && msg.result?.content) {
+            const content = msg.result.content[0];
+            const resultText = content.text || JSON.stringify(content);
+            
+            console.error(`[AIRS Security] Scan result: ${resultText}`);
+            
+            let action = 'allow';
+            let category = 'benign';
+            
+            try {
+              const parsedResult = JSON.parse(resultText);
+              
+              // The result is nested inside a "results" object
+              const scanResult = parsedResult.results || parsedResult;
+              
+              action = scanResult.action || 'allow';
+              category = scanResult.category || 'benign';
+              
+              console.error(`[AIRS Security] Parsed action: ${action}, category: ${category}`);
+              
+              // Log what was detected
+              if (scanResult.prompt_detected) {
+                const detections = Object.entries(scanResult.prompt_detected)
+                  .filter(([_, value]) => value === true)
+                  .map(([key]) => key);
+                if (detections.length > 0) {
+                  console.error(`[AIRS Security] Detections: ${detections.join(', ')}`);
+                }
+              }
+              
+            } catch (parseError) {
+              console.error(`[AIRS Security] Parse error: ${parseError.message}`);
+              // Fallback text check
+              if (/block|malicious|threat/i.test(resultText)) {
+                action = 'block';
+                category = 'malicious';
+              }
+            }
+            
+            scanComplete = true;
+            mcp.kill();
+            
+            if (action === 'block' || category === 'malicious') {
+              console.error('[AIRS Security] ❌ BLOCKING malicious prompt');
+              console.log(JSON.stringify({
+                cancel: true,
+                errorMessage: '🚫 AIRS Security: Potentially malicious prompt detected and blocked'
+              }));
+            } else {
+              console.error('[AIRS Security] ✅ ALLOWING safe prompt');
+              console.log(JSON.stringify({ 
+                cancel: false,
+                contextModification: '✅ [AIRS: Scanned - Safe]'
+              }));
+            }
+            process.exit(0);
+          }
+          
+          if (msg.error) {
+            console.error(`[AIRS Security] MCP Error: ${JSON.stringify(msg.error)}`);
+            mcp.kill();
+            console.log(JSON.stringify({ cancel: false }));
+            process.exit(0);
+          }
+        } catch (parseErr) {
+          // Ignore non-JSON lines
+        }
+      }
+    });
+
+    mcp.stderr.on('data', (chunk) => {
+      console.error(`[MCP stderr] ${chunk.toString()}`);
+    });
+
+    mcp.on('error', (err) => {
+      console.error(`[AIRS Security] Failed to spawn MCP: ${err.message}`);
+      console.log(JSON.stringify({ cancel: false }));
+      process.exit(0);
+    });
+
+    // Wait for process to start
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Send initialize request
+    const initMsg = {
+      jsonrpc: '2.0',
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: {
+          name: 'cline-airs-hook',
+          version: '1.0.0'
+        }
+      },
+      id: 1
+    };
+    
+    console.error('[AIRS Security] Sending initialize request...');
+    mcp.stdin.write(JSON.stringify(initMsg) + '\n');
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      if (!scanComplete) {
+        console.error('[AIRS Security] Timeout - allowing request');
+        mcp.kill();
+        console.log(JSON.stringify({ cancel: false }));
+        process.exit(0);
+      }
+    }, 10000);
+
+  } catch (error) {
+    console.error(`[AIRS Security] Error: ${error.message}`);
+    console.log(JSON.stringify({ cancel: false }));
+    process.exit(0);
+  }
+});
